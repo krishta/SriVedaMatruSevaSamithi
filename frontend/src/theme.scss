@@ -1,0 +1,25 @@
+// SVMSS brand theme — built on Angular Material's own M3 Sass theming API
+// (mat.define-theme), not a copied third-party design system. Saffron primary,
+// per the NGO's requested branding.
+@use '@angular/material' as mat;
+
+$svmss-theme: mat.define-theme(
+  (
+    color: (
+      theme-type: light,
+      primary: mat.$orange-palette,
+      tertiary: mat.$blue-palette,
+    ),
+    typography: (
+      plain-family: 'Inter, Roboto, "Helvetica Neue", sans-serif',
+    ),
+    density: (
+      scale: -5,
+    ),
+  )
+);
+
+html {
+  @include mat.core();
+  @include mat.all-component-themes($svmss-theme);
+}

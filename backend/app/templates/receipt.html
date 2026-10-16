@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 12pt; color: #111; margin: 2cm; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .ngo-name { font-size: 16pt; font-weight: bold; }
+  .meta { text-align: right; font-size: 10.5pt; }
+  .title { text-align: center; font-weight: bold; font-size: 14pt; margin: 24px 0; letter-spacing: 1px; }
+  table.fields td { padding: 4px 0; vertical-align: top; }
+  table.fields td.label { width: 190px; color: #333; }
+  .disclaimer { border-top: 1px solid #999; border-bottom: 1px solid #999; padding: 10px 0; margin-top: 24px; font-size: 9.5pt; text-align: center; }
+  .g80 { margin-top: 10px; font-size: 10pt; }
+  .signature { margin-top: 60px; text-align: right; }
+  .sig-line { margin-top: 40px; border-top: 1px solid #333; width: 220px; display: inline-block; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="ngo-name">{{ ngo.name }}</div>
+      <div>{{ ngo.address }}</div>
+      <div>UPI: {{ ngo.upi_id }} | Bank: {{ ngo.bank_account_name }}, A/C {{ ngo.bank_account_no }}, IFSC {{ ngo.bank_ifsc }}, {{ ngo.bank_name }}</div>
+    </div>
+    <div class="meta">
+      <div>Receipt No: {{ receipt_no }}</div>
+      <div>Date: {{ issued_date }}</div>
+    </div>
+  </div>
+
+  <div class="title">DONATION ACKNOWLEDGEMENT RECEIPT</div>
+
+  <table class="fields">
+    <tr><td class="label">Received with thanks from</td><td>: {{ donor.name }}</td></tr>
+    <tr><td class="label">Phone</td><td>: {{ donor.phone_display }}</td></tr>
+    <tr><td class="label">Address</td><td>: {{ donor.address or "—" }}</td></tr>
+    <tr><td class="label">Amount</td><td>: {{ amount_display }} ({{ amount_words }})</td></tr>
+    <tr><td class="label">Purpose / Reason</td><td>: {{ reason_display }}</td></tr>
+    <tr><td class="label">Payment Mode</td><td>: {{ mode }}</td></tr>
+  </table>
+
+  <div class="disclaimer">
+    This is a computer-generated acknowledgement of donation and is not valid for claiming tax
+    exemption under Section 80G.
+  </div>
+
+  {% if reg_80g_number %}
+  <div class="g80">80G Registration No: {{ reg_80g_number }} — this receipt is valid for tax exemption under Section 80G.</div>
+  {% endif %}
+
+  <div class="signature">
+    For {{ ngo.name }}
+    <div class="sig-line">Authorized Signatory</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,90 @@
+@use "theme";
+
+/* ============================================================
+   SVMSS design tokens — own CSS custom properties, saffron branding.
+   Not a copy of any third-party design system; values chosen to match
+   the Material theme's own orange primary defined in theme.scss.
+   ============================================================ */
+:root {
+  --svmss-brand: #ff9933;
+  --svmss-brand-dark: #b3661f;
+  --svmss-bg: #fbf7f2;
+  --svmss-surface: #ffffff;
+  --svmss-border: #ecdfd0;
+  --svmss-text: #2b2118;
+  --svmss-muted: #7a6a58;
+
+  --svmss-sidebar-bg: linear-gradient(180deg, #7a3b0a 0%, #b3661f 100%);
+  --svmss-sidebar-text: #f3e1cc;
+  --svmss-sidebar-text-strong: #ffffff;
+  --svmss-sidebar-hover: rgba(255, 255, 255, 0.1);
+  --svmss-sidebar-active: rgba(255, 255, 255, 0.18);
+  --svmss-sidebar-border: rgba(255, 255, 255, 0.12);
+
+  --svmss-radius-sm: 6px;
+  --svmss-radius-md: 10px;
+  --svmss-radius-lg: 14px;
+  --svmss-shadow-sm: 0 1px 2px rgba(43, 33, 24, 0.08);
+  --svmss-shadow-md: 0 4px 14px rgba(43, 33, 24, 0.1);
+  --svmss-font: Inter, Roboto, "Helvetica Neue", sans-serif;
+}
+
+html, body { height: 100%; margin: 0; font-family: var(--svmss-font); background: var(--svmss-bg); color: var(--svmss-text); }
+.page-container { max-width: 640px; margin: 0 auto; padding: 16px; }
+.full-width { width: 100%; margin-bottom: 8px; }
+
+/* Generic content surface — used to wrap admin page sections consistently. */
+.svmss-card {
+  background: var(--svmss-surface);
+  border: 1px solid var(--svmss-border);
+  border-radius: var(--svmss-radius-lg);
+  box-shadow: var(--svmss-shadow-sm);
+  padding: 20px;
+}
+.svmss-page { padding: 24px; }
+
+/* Material Symbols Outlined helper — font loaded in index.html. */
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-block;
+  white-space: nowrap;
+  letter-spacing: normal;
+  text-transform: none;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "opsz" 22;
+  vertical-align: middle;
+}
+
+/* Row of inline controls (e.g. a search box + its button) with visible spacing between them. */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* Field height is controlled by the Material theme's density scale (theme.scss, -5 = most
+   compact) instead of hand-overriding MDC's internal height/padding CSS — that approach broke
+   the label's vertical-centering math (MDC positions the resting label using an offset baked
+   for the *default* height, so forcing a shorter container without going through density made
+   the label stick to the top instead of the middle). Density keeps the label offset correct. */
+
+/* Scroll container for wide tables so they shrink with the viewport instead of
+   overflowing the page or refusing to shrink below their content width. */
+.svmss-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Match plain HTML tables (e.g. the batch-receipts grid) to MatTable's surface color. */
+.mat-mdc-table {
+  --mat-table-background-color: var(--svmss-surface);
+}

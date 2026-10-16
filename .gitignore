@@ -1,0 +1,46 @@
+# Local environment variables and secrets. Keep the example template shareable.
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Python virtual environments, bytecode, and test/tool caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend dependencies, Angular build output, and caches
+node_modules/
+dist/
+.angular/
+coverage/
+
+# Local databases and generated backend data (receipts, uploads)
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+
+# Logs and temporary/editor files
+*.log
+*.tmp
+*.swp
+*.swo
+.idea/
+
+# Operating-system metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+.Spotlight-V100/
+.Trashes/
