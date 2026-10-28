@@ -7,7 +7,13 @@ export interface NgoSettingsPublic {
   name: string;
   address: string;
   upi_id: string;
-  bank_details: { account_name?: string; account_no?: string; ifsc?: string; bank?: string };
+  bank_details: {
+    account_name?: string;
+    account_no?: string;
+    ifsc?: string;
+    bank?: string;
+    branch?: string;
+  };
   logo_url: string | null;
 }
 
@@ -19,7 +25,13 @@ export interface NgoSettingsUpdatePayload {
   name: string;
   address: string;
   upi_id: string;
-  bank_details: { account_name?: string; account_no?: string; ifsc?: string; bank?: string };
+  bank_details: {
+    account_name?: string;
+    account_no?: string;
+    ifsc?: string;
+    bank?: string;
+    branch?: string;
+  };
   reg_80g_number: string | null;
 }
 

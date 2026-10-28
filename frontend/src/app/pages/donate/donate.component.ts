@@ -17,6 +17,7 @@ const REASONS = [
   { value: 'monthly_donation', label: 'Monthly Donation' },
   { value: 'birthday', label: 'Birthday' },
   { value: 'occasion_veda_sabha', label: 'Occasion / Veda Sabha' },
+  { value: 'telangana_veda_sabhalu_2026', label: '2026 Telangana Veda Sabhalu' },
   { value: 'general_donation', label: 'General Donation' },
   { value: 'other', label: 'Other' },
 ];

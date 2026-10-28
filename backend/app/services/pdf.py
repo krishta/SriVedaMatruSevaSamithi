@@ -22,6 +22,7 @@ _REASON_LABELS = {
     "monthly_donation": "Monthly Donation",
     "birthday": "Birthday",
     "occasion_veda_sabha": "Occasion / Veda Sabha",
+    "telangana_veda_sabhalu_2026": "2026 Telangana Veda Sabhalu",
     "general_donation": "General Donation",
     "other": "Other",
 }
@@ -33,8 +34,8 @@ _MODE_LABELS = {
 }
 
 DISCLAIMER = (
-    "This is a computer-generated acknowledgement of donation and no signature is required "
-    "and is not valid for claiming tax exemption under Section 80G."
+    "This is a computer-generated acknowledgement of donation and no signature is required.",
+    "This receipt is not valid for claiming tax exemption under Section 80G.",
 )
 
 # Fixed columns so every field's ":" lines up, regardless of label length (Helvetica isn't
@@ -54,12 +55,12 @@ def _phone_display(phone_e164: str) -> str:
 
 def _receipt_donor_name(name: str) -> str:
     parts = name.split()
-    if parts and parts[0].casefold() in {"sri", "sri."}:
+    if parts and parts[0].casefold() in {"sri", "sri.", "smt", "smt."}:
         parts = parts[1:]
     if parts and parts[-1].casefold() == "garu":
         parts = parts[:-1]
     donor_name = " ".join(parts)
-    return f"Sri {donor_name} garu" if donor_name else "Sri garu"
+    return f"Sri/Smt. {donor_name} garu" if donor_name else "Sri/Smt. garu"
 
 
 def _wrap(text: str, width_chars: int) -> list[str]:
@@ -114,6 +115,21 @@ def render_receipt_pdf(
     y = height - 2 * cm
 
     text_left = left
+    address_lines = [
+        line
+        for address_line in ngo.address.splitlines()
+        for line in _wrap(address_line, 70)
+    ]
+    bank_lines = [
+        f"UPI: {ngo.upi_id}",
+        f"Bank: {bank.get('bank', '')}",
+        f"IFSC: {bank.get('ifsc', '')}",
+        f"Branch: {bank.get('branch', '')}",
+        f"Account number: {bank.get('account_no', '')}",
+    ]
+    header_line_count = 1 + len(address_lines) + len(bank_lines)
+    header_bottom_y = y - 13 * (header_line_count - 1)
+    logo_center_y = (y + header_bottom_y) / 2
     logo_path = BACKEND_ROOT / ngo.logo_path if ngo.logo_path else None
     if not logo_path or not logo_path.is_file():
         configured_logo_path = BACKEND_ROOT / settings.ngo_logo_path
@@ -124,7 +140,7 @@ def render_receipt_pdf(
             c.drawImage(
                 ImageReader(str(logo_path)),
                 left,
-                y - logo_size + 0.3 * cm,
+                logo_center_y - logo_size / 2,
                 width=logo_size,
                 height=logo_size,
                 preserveAspectRatio=True,
@@ -143,16 +159,12 @@ def render_receipt_pdf(
     c.drawRightString(right, y, f"Date: {date_str}")
 
     c.setFont("Helvetica", 10)
-    for line in _wrap(ngo.address, 70):
+    for line in address_lines:
         y -= 13
         c.drawString(text_left, y, line)
-    y -= 13
-    c.drawString(
-        text_left,
-        y,
-        f"UPI: {ngo.upi_id} | Bank: {bank.get('account_name', '')}, A/C {bank.get('account_no', '')}, "
-        f"IFSC {bank.get('ifsc', '')}, {bank.get('bank', '')}",
-    )
+    for line in bank_lines:
+        y -= 13
+        c.drawString(text_left, y, line)
 
     y -= 36
     c.setFont("Helvetica-Bold", 13)
@@ -188,21 +200,11 @@ def render_receipt_pdf(
     c.line(left, y, right, y)
     y -= 14
     c.setFont("Helvetica-Oblique", 8.5)
-    for line in _wrap(DISCLAIMER, 95):
-        c.drawCentredString(width / 2, y, line)
+    for statement in DISCLAIMER:
+        c.drawCentredString(width / 2, y, statement)
         y -= 11
     y -= 3
     c.line(left, y, right, y)
-
-    if ngo.reg_80g_number:
-        y -= 16
-        c.setFont("Helvetica", 9.5)
-        c.drawString(
-            left,
-            y,
-            f"80G Registration No: {ngo.reg_80g_number} \u2014 this receipt is valid for tax "
-            "exemption under Section 80G.",
-        )
 
     c.showPage()
     c.save()

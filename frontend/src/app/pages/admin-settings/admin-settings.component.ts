@@ -59,6 +59,11 @@ import { NgoSettingsService } from '../../services/ngo-settings.service';
           <input matInput formControlName="bank" />
         </mat-form-field>
 
+        <mat-form-field>
+          <mat-label>Branch</mat-label>
+          <input matInput formControlName="branch" />
+        </mat-form-field>
+
         <mat-form-field class="span-2">
           <mat-label>80G Registration No. (only fill in once registration is confirmed)</mat-label>
           <input matInput formControlName="reg_80g_number" />
@@ -106,6 +111,7 @@ export class AdminSettingsComponent implements OnInit {
     account_no: [''],
     ifsc: [''],
     bank: [''],
+    branch: [''],
     reg_80g_number: [''],
   });
 
@@ -121,6 +127,7 @@ export class AdminSettingsComponent implements OnInit {
         account_no: ngo.bank_details.account_no ?? '',
         ifsc: ngo.bank_details.ifsc ?? '',
         bank: ngo.bank_details.bank ?? '',
+        branch: ngo.bank_details.branch ?? '',
         reg_80g_number: ngo.reg_80g_number ?? '',
       });
       this.loaded = true;
@@ -141,6 +148,7 @@ export class AdminSettingsComponent implements OnInit {
           account_no: v.account_no || undefined,
           ifsc: v.ifsc || undefined,
           bank: v.bank || undefined,
+          branch: v.branch || undefined,
         },
         reg_80g_number: v.reg_80g_number || null,
       })

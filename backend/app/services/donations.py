@@ -22,6 +22,7 @@ VALID_REASONS = {
     "monthly_donation",
     "birthday",
     "occasion_veda_sabha",
+    "telangana_veda_sabhalu_2026",
     "general_donation",
     "other",
 }

@@ -19,7 +19,8 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings
-from app.db.base import Base, engine
+from app.db.base import Base, SessionLocal, engine
+from app.db.models import NgoSettings
 from app.main import app
 from app.services.amount_words import amount_paise_to_words, rupees_in_words
 from scripts.seed import run as seed_run
@@ -143,7 +144,8 @@ def test_zero_amount_rejected():
 def test_valid_reasons_accepted():
     """DN-02: all canonical reason values are accepted."""
     valid_reasons = [
-        "monthly_donation", "birthday", "occasion_veda_sabha", "general_donation",
+        "monthly_donation", "birthday", "occasion_veda_sabha",
+        "telangana_veda_sabhalu_2026", "general_donation",
     ]
     for i, reason in enumerate(valid_reasons):
         data = {
@@ -253,31 +255,117 @@ def _pdf_search(pdf_bytes: bytes, needle: str) -> bool:
     return False
 
 
-def test_pdf_returned_and_contains_receipt_no_and_disclaimer():
+def test_pdf_returned_with_current_receipt_details_and_disclaimer():
     """DN-05 / SY-01: donation response includes a pdf_url; fetching it returns a PDF
-    that contains the receipt number and the mandatory 80G disclaimer text.
+    that contains the receipt number, organization details, and required disclaimers.
 
     Note: ReportLab compresses content streams with zlib; the receipt number and
     disclaimer are searched in both raw bytes and decompressed streams via _pdf_search().
     """
-    body = _make_donation(phone="9100000093", amount_paise="10000", upi_txn_id="UPI-PDF-001")
-    receipt_no = body["receipt_no"]
-    pdf_url = body["pdf_url"]
-    assert pdf_url.startswith("/api/receipts/")
+    db = SessionLocal()
+    ngo = db.get(NgoSettings, 1)
+    original_address = ngo.address
+    original_upi_id = ngo.upi_id
+    original_bank_details = ngo.bank_details_json
+    ngo.address = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+    ngo.upi_id = "314337859395612@cnrb"
+    ngo.bank_details_json = json.dumps(
+        {
+            "bank": "Canara Bank",
+            "ifsc": "CNRB0013309",
+            "branch": "Bandlaguda",
+            "account_no": "120002395612",
+        }
+    )
+    db.commit()
+    db.close()
 
-    resp = client.get(pdf_url)
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == "application/pdf"
+    try:
+        body = _make_donation(
+            name="Verify Donor", phone="9100000093", amount_paise="10000", upi_txn_id="UPI-PDF-001"
+        )
+        receipt_no = body["receipt_no"]
+        pdf_url = body["pdf_url"]
+        assert pdf_url.startswith("/api/receipts/")
 
-    pdf_bytes = resp.content
-    assert pdf_bytes[:4] == b"%PDF", "Response is not a valid PDF"
-    assert len(pdf_bytes) > 2000, "PDF is suspiciously small — likely empty"
+        resp = client.get(pdf_url)
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/pdf"
 
-    # Receipt number must appear somewhere in the PDF (raw or decompressed stream).
-    assert _pdf_search(pdf_bytes, receipt_no), f"Receipt number '{receipt_no}' not found in PDF"
-    # Mandatory disclaimer text (PRD §3.9 / module 07).
-    assert _pdf_search(pdf_bytes, "not valid for claiming tax exemption under Section 80G"), \
-        "80G disclaimer not found in PDF"
+        pdf_bytes = resp.content
+        assert pdf_bytes[:4] == b"%PDF", "Response is not a valid PDF"
+        assert len(pdf_bytes) > 2000, "PDF is suspiciously small — likely empty"
+
+        # Receipt number must appear somewhere in the PDF (raw or decompressed stream).
+        assert _pdf_search(pdf_bytes, receipt_no), f"Receipt number '{receipt_no}' not found in PDF"
+        expected_receipt_text = [
+            "Sri/Smt. Verify Donor garu",
+            "HNO 5-78",
+            "Plot no 65, Navodaya Enclave,",
+            "Kuntloor, Hyderabad 501505",
+            "UPI: 314337859395612@cnrb",
+            "Bank: Canara Bank",
+            "IFSC: CNRB0013309",
+            "Branch: Bandlaguda",
+            "Account number: 120002395612",
+            "This is a computer-generated acknowledgement of donation and no signature is required.",
+            "This receipt is not valid for claiming tax exemption under Section 80G.",
+        ]
+        for expected in expected_receipt_text:
+            assert _pdf_search(pdf_bytes, expected), f"Expected receipt text not found: {expected}"
+        assert not _pdf_search(pdf_bytes, "valid for tax exemption under Section 80G")
+    finally:
+        db = SessionLocal()
+        ngo = db.get(NgoSettings, 1)
+        ngo.address = original_address
+        ngo.upi_id = original_upi_id
+        ngo.bank_details_json = original_bank_details
+        db.commit()
+        db.close()
+
+
+def test_seed_repairs_legacy_ngo_placeholders(monkeypatch):
+    db = SessionLocal()
+    ngo = db.get(NgoSettings, 1)
+    ngo.address = "TBD_registered_address"
+    ngo.upi_id = "TBD@upi"
+    ngo.bank_details_json = json.dumps(
+        {
+            "account_name": "TBD",
+            "account_no": "TBD",
+            "ifsc": "TBD",
+            "bank": "TBD",
+            "branch": "TBD",
+        }
+    )
+    db.commit()
+    db.close()
+
+    for key in (
+        "ngo_address",
+        "ngo_upi_id",
+        "ngo_bank_account_name",
+        "ngo_bank_account_no",
+        "ngo_bank_ifsc",
+        "ngo_bank_name",
+        "ngo_bank_branch",
+    ):
+        monkeypatch.setattr(settings, key, "TBD")
+
+    seed_run()
+
+    db = SessionLocal()
+    ngo = db.get(NgoSettings, 1)
+    assert ngo.address == "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+    assert ngo.upi_id == "314337859395612@cnrb"
+    assert json.loads(ngo.bank_details_json) == {
+        "account_name": "",
+        "account_no": "120002395612",
+        "ifsc": "CNRB0013309",
+        "bank": "Canara Bank",
+        "branch": "Bandlaguda",
+    }
+    db.close()
 
 
 # ---------------------------------------------------------------------------

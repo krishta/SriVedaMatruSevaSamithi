@@ -47,7 +47,7 @@ Run these commands from the `backend/` directory.
    Copy-Item .env.example .env
    ```
 
-   For local development, the example configures SQLite at `./data/svmss.db` and permits the frontend at `http://localhost:4200`. Before seeding, change `JWT_SECRET` and `SEED_ADMIN_PASSWORD` in `.env` to values of your own. The example admin credentials are `admin` / `admin`; do not use them outside a disposable local setup. NGO/bank values in the example are placeholders. SMTP values can remain unset/placeholders if you do not need email delivery.
+   For local development, the example configures SQLite at `./data/svmss.db` and permits the frontend at `http://localhost:4200`. Before seeding, change `JWT_SECRET` and `SEED_ADMIN_PASSWORD` in `.env` to values of your own. The example admin credentials are `admin` / `admin`; do not use them outside a disposable local setup. The NGO address and bank details are prefilled; SMTP values can remain unset/placeholders if you do not need email delivery.
 
 4. Create the local storage directories.
 
@@ -69,7 +69,7 @@ Run these commands from the `backend/` directory.
    python -m scripts.seed
    ```
 
-   The seed script is safe to run again: existing admin and NGO settings are not recreated. The password for an existing admin is not changed by re-running it; use `python reset_admin.py` after changing `SEED_ADMIN_PASSWORD` if you need to reset that account.
+   The seed script is safe to run again: existing admin settings are preserved except for replacing old NGO/bank placeholders and syncing the bundled logo path. The password for an existing admin is not changed by re-running it; use `python reset_admin.py` after changing `SEED_ADMIN_PASSWORD` if you need to reset that account.
 
 6. Start the API server.
 

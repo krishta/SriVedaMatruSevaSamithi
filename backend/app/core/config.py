@@ -1,6 +1,14 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_NGO_ADDRESS = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+DEFAULT_NGO_UPI_ID = "314337859395612@cnrb"
+DEFAULT_NGO_BANK_ACCOUNT_NO = "120002395612"
+DEFAULT_NGO_BANK_IFSC = "CNRB0013309"
+DEFAULT_NGO_BANK_NAME = "Canara Bank"
+DEFAULT_NGO_BANK_BRANCH = "Bandlaguda"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -25,12 +33,13 @@ class Settings(BaseSettings):
     rate_limit_lookup_per_hour: int = 20
 
     ngo_name: str = "Sri Veda Matru Seva Samiti"
-    ngo_address: str = "TBD_registered_address"
-    ngo_upi_id: str = "TBD@upi"
-    ngo_bank_account_name: str = "TBD"
-    ngo_bank_account_no: str = "TBD"
-    ngo_bank_ifsc: str = "TBD"
-    ngo_bank_name: str = "TBD"
+    ngo_address: str = DEFAULT_NGO_ADDRESS
+    ngo_upi_id: str = DEFAULT_NGO_UPI_ID
+    ngo_bank_account_name: str = ""
+    ngo_bank_account_no: str = DEFAULT_NGO_BANK_ACCOUNT_NO
+    ngo_bank_ifsc: str = DEFAULT_NGO_BANK_IFSC
+    ngo_bank_name: str = DEFAULT_NGO_BANK_NAME
+    ngo_bank_branch: str = DEFAULT_NGO_BANK_BRANCH
     # Bundled default logo, relative to the backend root — swapped for an uploaded one later.
     ngo_logo_path: str = "app/static/logo.jpg"
 
