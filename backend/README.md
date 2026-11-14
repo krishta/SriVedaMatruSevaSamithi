@@ -74,10 +74,11 @@ Run these commands from the `backend/` directory.
 6. Start the API server.
 
    ```bash
-   python -m uvicorn app.main:app --reload
+   python -m uvicorn app.main:app --reload --host 0.0.0.0
    ```
 
-   Keep this terminal open while using the app. The API listens on `http://localhost:8000`.
+   Keep this terminal open while using the app. The API listens on port `8000` on the Mac's
+   network interfaces, including `http://192.168.1.102:8000`.
 
 ## Verify the backend
 
@@ -98,6 +99,6 @@ python -m pytest
 ## Troubleshooting
 
 - **The app cannot connect to SQLite:** run the API from `backend/` and ensure `data/` exists. The relative database URL is resolved from the current working directory.
-- **Browser reports a CORS error:** check that `CORS_ALLOWED_ORIGINS` in `.env` includes the frontend origin, normally `http://localhost:4200`, then restart the API.
+- **Browser reports a CORS error:** check that `CORS_ALLOWED_ORIGINS` in `.env` includes the frontend origins, normally `http://localhost:4200` and `http://192.168.1.102:4200`, then restart the API.
 - **Admin login fails:** check `SEED_ADMIN_USERNAME` and `SEED_ADMIN_PASSWORD` in `.env`. If the account was already seeded, run `python reset_admin.py` after updating the password.
 - **The NGO logo is missing from an existing local database:** after updating the code, run `python -m scripts.seed` from `backend/` to sync the bundled logo path into the existing NGO settings row.

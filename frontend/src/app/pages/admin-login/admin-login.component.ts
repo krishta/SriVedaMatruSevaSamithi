@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -139,9 +140,15 @@ export class AdminLoginComponent implements OnInit {
         this.loading = false;
         this.router.navigate(['/admin/ledger']);
       },
-      error: () => {
+      error: (error: HttpErrorResponse) => {
         this.loading = false;
-        this.snackBar.open('Invalid credentials', 'Dismiss');
+        const message =
+          error.status === 401
+            ? 'Invalid credentials'
+            : error.status === 0
+              ? 'Cannot reach the Mac mini API. Start the backend with --host 0.0.0.0 and check network access.'
+              : `Login failed (HTTP ${error.status}). Please try again.`;
+        this.snackBar.open(message, 'Dismiss', { duration: 8000 });
       },
     });
   }

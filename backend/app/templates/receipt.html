@@ -20,11 +20,10 @@
     <div>
       <div class="ngo-name">{{ ngo.name }}</div>
       <div class="address">{{ ngo.address }}</div>
+      <div>Phone: {{ ngo.phone }}</div>
+      <div>Account number: {{ ngo.bank_account_no }} | Bank: {{ ngo.bank_name }}</div>
+      <div>Branch: {{ ngo.bank_branch }} | IFSC: {{ ngo.bank_ifsc }}</div>
       <div>UPI: {{ ngo.upi_id }}</div>
-      <div>Bank: {{ ngo.bank_name }}</div>
-      <div>IFSC: {{ ngo.bank_ifsc }}</div>
-      <div>Branch: {{ ngo.bank_branch }}</div>
-      <div>Account number: {{ ngo.bank_account_no }}</div>
     </div>
     <div class="meta">
       <div>Receipt No: {{ receipt_no }}</div>
@@ -35,7 +34,7 @@
   <div class="title">DONATION ACKNOWLEDGEMENT RECEIPT</div>
 
   <table class="fields">
-    <tr><td class="label">Received with thanks from</td><td>: Sri/Smt. {{ donor.name }}</td></tr>
+    <tr><td class="label">Donor Name</td><td>: Sri/Smt. {{ donor.name }} garu</td></tr>
     <tr><td class="label">Phone</td><td>: {{ donor.phone_display }}</td></tr>
     <tr><td class="label">Address</td><td>: {{ donor.address or "—" }}</td></tr>
     <tr><td class="label">Amount</td><td>: {{ amount_display }} ({{ amount_words }})</td></tr>

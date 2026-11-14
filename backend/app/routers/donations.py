@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from app.core.security import get_current_admin
+from app.core.security import get_current_admin, get_current_admin_optional
 from app.db.base import get_db
 from app.db.models import AdminUser, Donation, Donor, Receipt
 from app.schemas import (
@@ -45,9 +45,20 @@ async def submit_donation(
     bank_name: str | None = Form(None),
     branch_name: str | None = Form(None),
     transaction_date: date | None = Form(None),
-    screenshot: UploadFile = File(...),
+    screenshot: UploadFile | None = File(None),
     db: Session = Depends(get_db),
+    admin: AdminUser | None = Depends(get_current_admin_optional),
 ):
+    """Create a public donation or an admin-entered one-off donation.
+
+    A screenshot is required for public submissions and optional for authenticated admins.
+    """
+    if screenshot is None and admin is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "A payment screenshot is required for public donations",
+        )
+
     donation, receipt, email_sent = create_donation(
         db,
         name=name,

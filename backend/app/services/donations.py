@@ -166,7 +166,7 @@ def create_donation(
     bank_name: str | None,
     branch_name: str | None,
     transaction_date: date | None,
-    screenshot: UploadFile,
+    screenshot: UploadFile | None,
 ) -> tuple[Donation, Receipt, bool]:
     if amount_paise <= 0:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Amount must be greater than zero")
@@ -180,13 +180,17 @@ def create_donation(
         transaction_date=transaction_date,
     )
 
-    content = screenshot.file.read()
-    validate_upload_content(content)
     normalized_phone = normalize_phone(phone)
+    screenshot_path = None
+    if screenshot is not None:
+        content = screenshot.file.read()
+        validate_upload_content(content)
+        screenshot_path = upload_storage.save(
+            "screenshots", screenshot.filename or "upload.bin", content
+        )
 
     # Single DB transaction: donor + donation + receipt-number allocation + receipt row.
     donor = _get_or_create_donor(db, normalized_phone, name, email, address)
-    screenshot_path = upload_storage.save("screenshots", screenshot.filename or "upload.bin", content)
 
     donation = Donation(
         donor_id=donor.id,

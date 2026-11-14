@@ -24,6 +24,8 @@ from app.db.base import Base, SessionLocal, engine
 from app.db.models import AdminUser, NgoSettings, PeriodCounter
 from app.services.period import current_period
 
+PREVIOUS_NGO_ADDRESS = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+
 
 def _configured_or_default(value: str, placeholder: str, default: str) -> str:
     return default if value.strip() in {"", "TBD", placeholder} else value
@@ -66,7 +68,11 @@ def run() -> None:
             )
             print("Seeded NgoSettings with the configured organization and bank details.")
         else:
-            if existing_ngo.address in ("TBD_registered_address", "TBD"):
+            if existing_ngo.address in (
+                "TBD_registered_address",
+                "TBD",
+                PREVIOUS_NGO_ADDRESS,
+            ):
                 existing_ngo.address = ngo_address
             if existing_ngo.upi_id in ("TBD@upi", "TBD"):
                 existing_ngo.upi_id = ngo_upi_id

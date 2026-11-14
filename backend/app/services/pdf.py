@@ -4,8 +4,10 @@ import logging
 from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.colors import HexColor
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
 from app.core.config import settings
@@ -38,12 +40,102 @@ DISCLAIMER = (
     "This receipt is not valid for claiming tax exemption under Section 80G.",
 )
 
-# Fixed columns so every field's ":" lines up, regardless of label length (Helvetica isn't
-# monospace, so naive string-padding never aligns).
-_LABEL_X_OFFSET = 0
-_COLON_X_OFFSET = 4.6 * cm
-_VALUE_X_OFFSET = _COLON_X_OFFSET + 0.3 * cm
-_VALUE_WRAP_CHARS = 58
+_BRAND_ORANGE = HexColor("#c46a1b")
+_PALE_ORANGE = HexColor("#fff6ec")
+_INK = HexColor("#27231f")
+
+
+def _draw_image(c: canvas.Canvas, path: Path, x: float, y: float, height: float) -> float:
+    image = ImageReader(str(path))
+    image_width, image_height = image.getSize()
+    width = height * image_width / image_height
+    c.drawImage(image, x, y, width=width, height=height, mask="auto")
+    return width
+
+
+def _draw_centered_image(
+    c: canvas.Canvas, path: Path, center_x: float, y: float, height: float
+) -> None:
+    image = ImageReader(str(path))
+    image_width, image_height = image.getSize()
+    width = height * image_width / image_height
+    c.drawImage(image, center_x - width / 2, y, width=width, height=height, mask="auto")
+
+
+def _wrap_to_width(text: str, max_width: float, font: str, font_size: float) -> list[str]:
+    words = text.split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and stringWidth(candidate, font, font_size) > max_width:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _draw_receipt_table(
+    c: canvas.Canvas,
+    left: float,
+    top: float,
+    width: float,
+    receipt_no: str,
+    issued_date: str,
+    rows: list[tuple[str, str]],
+) -> float:
+    label_x = left + 10
+    value_x = left + 155
+    value_width = width - (value_x - left) - 12
+    font = "Helvetica"
+    font_size = 9.5
+    line_height = 14
+    row_top = top
+
+    c.setStrokeColor(_BRAND_ORANGE)
+    c.setLineWidth(0.8)
+    c.rect(left, top - 27, width, 27, stroke=1, fill=0)
+    c.setFillColor(_PALE_ORANGE)
+    c.rect(left, top - 27, width, 27, stroke=0, fill=1)
+    c.setStrokeColor(_BRAND_ORANGE)
+    c.rect(left, top - 27, width, 27, stroke=1, fill=0)
+    c.setFont("Helvetica-Bold", 9.5)
+    c.setFillColor(_INK)
+    c.drawString(label_x, top - 17, "Receipt No.:")
+    c.setFont(font, font_size)
+    c.drawString(left + 74, top - 17, receipt_no)
+    date_label = "Date:"
+    date_value = f"{date_label}  {issued_date}"
+    c.setFont("Helvetica-Bold", 9.5)
+    c.drawRightString(left + width - 10, top - 17, date_value)
+    row_top -= 27
+
+    for label, value in rows:
+        lines = _wrap_to_width(value, value_width, font, font_size) or ["—"]
+        row_height = max(24, len(lines) * line_height + 10)
+        row_bottom = row_top - row_height
+        c.setFillColor(_INK)
+
+        text_y = row_top - (row_height - len(lines) * line_height) / 2 - 10
+        c.setFont("Helvetica-Bold", font_size)
+        c.drawString(label_x, text_y, label)
+        c.setFont(font, font_size)
+        for line in lines:
+            c.drawString(value_x, text_y, line)
+            text_y -= line_height
+
+        c.setStrokeColor(HexColor("#e4cbb4"))
+        c.setLineWidth(0.65)
+        c.line(left, row_bottom, left + width, row_bottom)
+        row_top = row_bottom
+
+    c.setStrokeColor(_BRAND_ORANGE)
+    c.setLineWidth(0.8)
+    c.rect(left, row_top, width, top - row_top, stroke=1, fill=0)
+    return row_top
 
 
 def _phone_display(phone_e164: str) -> str:
@@ -61,36 +153,6 @@ def _receipt_donor_name(name: str) -> str:
         parts = parts[:-1]
     donor_name = " ".join(parts)
     return f"Sri/Smt. {donor_name} garu" if donor_name else "Sri/Smt. garu"
-
-
-def _wrap(text: str, width_chars: int) -> list[str]:
-    words = text.split()
-    lines: list[str] = []
-    current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if len(candidate) > width_chars and current:
-            lines.append(current)
-            current = word
-        else:
-            current = candidate
-    if current:
-        lines.append(current)
-    return lines
-
-
-def _draw_field(c: canvas.Canvas, left: float, y: float, label: str, value: str) -> float:
-    """Draws one 'Label : Value' row with the colon aligned to a fixed column, wrapping long
-    values onto continuation lines under the value column. Returns the y for the next field."""
-    lines = _wrap(value, _VALUE_WRAP_CHARS) or [""]
-    c.setFont("Helvetica", 10.5)
-    c.drawString(left + _LABEL_X_OFFSET, y, label)
-    c.drawString(left + _COLON_X_OFFSET, y, ":")
-    c.drawString(left + _VALUE_X_OFFSET, y, lines[0])
-    for extra_line in lines[1:]:
-        y -= 14
-        c.drawString(left + _VALUE_X_OFFSET, y, extra_line)
-    return y - 18
 
 
 def render_receipt_pdf(
@@ -114,26 +176,86 @@ def render_receipt_pdf(
     right = width - 2 * cm
     y = height - 2 * cm
 
-    text_left = left
-    address_lines = [
-        line
-        for address_line in ngo.address.splitlines()
-        for line in _wrap(address_line, 70)
-    ]
-    bank_lines = [
-        f"UPI: {ngo.upi_id}",
-        f"Bank: {bank.get('bank', '')}",
-        f"IFSC: {bank.get('ifsc', '')}",
-        f"Branch: {bank.get('branch', '')}",
-        f"Account number: {bank.get('account_no', '')}",
-    ]
-    header_line_count = 1 + len(address_lines) + len(bank_lines)
-    header_bottom_y = y - 13 * (header_line_count - 1)
-    logo_center_y = (y + header_bottom_y) / 2
+    header_title_y = height - 2.65 * cm
     logo_path = BACKEND_ROOT / ngo.logo_path if ngo.logo_path else None
     if not logo_path or not logo_path.is_file():
         configured_logo_path = BACKEND_ROOT / settings.ngo_logo_path
         logo_path = configured_logo_path if configured_logo_path.is_file() else None
+
+    caption_y = height - 1.65 * cm
+    caption_height = 18
+    caption_assets = {
+        "left": BACKEND_ROOT / "app/static/jay-jay-shankara.png",
+        "om": BACKEND_ROOT / "app/static/om.png",
+        "right": BACKEND_ROOT / "app/static/hara-hara-shankara.png",
+    }
+    content_center_x = width / 2
+    if all(path.is_file() for path in caption_assets.values()):
+        left_caption = ImageReader(str(caption_assets["left"]))
+        left_caption_width = caption_height * left_caption.getSize()[0] / left_caption.getSize()[1]
+        c.drawImage(
+            left_caption,
+            left,
+            caption_y - caption_height / 2,
+            width=left_caption_width,
+            height=caption_height,
+            mask="auto",
+        )
+        _draw_centered_image(
+            c,
+            caption_assets["om"],
+            content_center_x,
+            caption_y - caption_height / 2,
+            caption_height,
+        )
+        right_caption = ImageReader(str(caption_assets["right"]))
+        right_caption_width = caption_height * right_caption.getSize()[0] / right_caption.getSize()[1]
+        c.drawImage(
+            right_caption,
+            right - right_caption_width,
+            caption_y - caption_height / 2,
+            width=right_caption_width,
+            height=caption_height,
+            mask="auto",
+        )
+
+    c.setFillColor(_INK)
+    c.setFont("Helvetica-Bold", 15)
+    c.drawCentredString(content_center_x, header_title_y, ngo.name)
+
+    address_lines = [
+        line
+        for address_line in ngo.address.splitlines()
+        for line in _wrap_to_width(address_line, width - 2 * left, "Helvetica", 9.5)
+    ]
+    header_line_y = header_title_y - 15
+    c.setFont("Helvetica", 9.5)
+    for line in address_lines:
+        c.drawCentredString(content_center_x, header_line_y, line)
+        header_line_y -= 12
+
+    header_line_y -= 1
+    c.drawCentredString(content_center_x, header_line_y, f"Phone: {settings.ngo_phone}")
+    header_line_y -= 12
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(
+        content_center_x,
+        header_line_y,
+        f"Account number: {bank.get('account_no', '')}  |  Bank: {bank.get('bank', '')}",
+    )
+    header_line_y -= 10
+    c.drawCentredString(
+        content_center_x,
+        header_line_y,
+        f"Branch: {bank.get('branch', '')}  |  IFSC: {bank.get('ifsc', '')}",
+    )
+    header_line_y -= 10
+    c.drawCentredString(
+        content_center_x,
+        header_line_y,
+        f"UPI: {ngo.upi_id}",
+    )
+    logo_center_y = (header_title_y + header_line_y) / 2
     if logo_path and logo_path.exists():
         try:
             logo_size = LOGO_BOX_CM * cm
@@ -146,64 +268,65 @@ def render_receipt_pdf(
                 preserveAspectRatio=True,
                 mask="auto",
             )
-            text_left = left + logo_size + 0.4 * cm
         except Exception:
-            logger.exception("Failed to draw NGO logo on receipt %s — continuing without it", receipt.receipt_no)
+            logger.exception(
+                "Failed to draw NGO logo on receipt %s — continuing without it",
+                receipt.receipt_no,
+            )
 
-    c.setFont("Helvetica-Bold", 15)
-    c.drawString(text_left, y, ngo.name)
-    c.setFont("Helvetica", 9.5)
-    c.drawRightString(right, y, f"Receipt No: {receipt.receipt_no}")
-    y -= 14
-    date_str = receipt.issued_at.strftime("%d-%b-%Y") if receipt.issued_at else ""
-    c.drawRightString(right, y, f"Date: {date_str}")
+    c.setStrokeColor(_BRAND_ORANGE)
+    c.setLineWidth(0.7)
+    c.line(left, header_line_y - 12, right, header_line_y - 12)
 
-    c.setFont("Helvetica", 10)
-    for line in address_lines:
-        y -= 13
-        c.drawString(text_left, y, line)
-    for line in bank_lines:
-        y -= 13
-        c.drawString(text_left, y, line)
-
-    y -= 36
+    title_y = header_line_y - 34
     c.setFont("Helvetica-Bold", 13)
-    c.drawCentredString(width / 2, y, "DONATION ACKNOWLEDGEMENT RECEIPT")
+    c.setFillColor(_BRAND_ORANGE)
+    c.drawCentredString(content_center_x, title_y, "DONATION ACKNOWLEDGEMENT RECEIPT")
 
-    y -= 28
-    fields = [
-        ("Received with thanks from", _receipt_donor_name(donor.name)),
-        ("Phone", _phone_display(donor.phone)),
+    receipt_rows = [
+        ("Donor Name", _receipt_donor_name(donor.name)),
         ("Address", donor.address or "\u2014"),
-        (
-            "Amount",
-            f"{format_inr_ascii(donation.amount_paise)} ({amount_paise_to_words(donation.amount_paise)})",
-        ),
-        ("Purpose / Reason", reason_display),
-        ("Payment Mode", mode_display),
+        ("Mobile Number", _phone_display(donor.phone)),
+        ("Email", donor.email or "\u2014"),
+        ("Towards", reason_display),
+        ("Amount in Words", amount_paise_to_words(donation.amount_paise)),
+        ("Amount (Rupees)", format_inr_ascii(donation.amount_paise)),
     ]
-    # Mode-specific extra fields (module 04/08 — collected on the donate form).
+    payment_details = [mode_display]
     if donation.mode == "upi":
-        fields.append(("UPI Transaction ID", donation.upi_txn_id or "\u2014"))
+        transaction_id = donation.upi_txn_id or "\u2014"
+        payment_details.append(f"Transaction ID: {transaction_id}")
     elif donation.mode in ("bank_transfer", "cheque_dd"):
-        date_label = "Date of Transfer" if donation.mode == "bank_transfer" else "Date of Cheque / DD"
-        fields.append(("Bank Name", donation.bank_name or "\u2014"))
-        fields.append(("Branch Name", donation.branch_name or "\u2014"))
-        fields.append(
-            (date_label, donation.transaction_date.strftime("%d-%b-%Y") if donation.transaction_date else "\u2014")
-        )
+        if donation.bank_name:
+            payment_details.append(f"Bank: {donation.bank_name}")
+        if donation.branch_name:
+            payment_details.append(f"Branch: {donation.branch_name}")
+        if donation.transaction_date:
+            payment_details.append(f"Date: {donation.transaction_date:%d-%b-%Y}")
+    receipt_rows.append(("Mode of Payment", "  |  ".join(payment_details)))
 
-    for label, value in fields:
-        y = _draw_field(c, left, y, label, value)
+    table_bottom = _draw_receipt_table(
+        c,
+        left,
+        title_y - 15,
+        right - left,
+        receipt.receipt_no,
+        receipt.issued_at.strftime("%d-%b-%Y") if receipt.issued_at else "",
+        receipt_rows,
+    )
 
-    y -= 6
+    y = table_bottom - 23
+    c.setStrokeColor(_BRAND_ORANGE)
+    c.setLineWidth(0.7)
     c.line(left, y, right, y)
-    y -= 14
+    y -= 18
+    c.setFillColor(_INK)
     c.setFont("Helvetica-Oblique", 8.5)
     for statement in DISCLAIMER:
         c.drawCentredString(width / 2, y, statement)
         y -= 11
     y -= 3
+    c.setStrokeColor(_BRAND_ORANGE)
     c.line(left, y, right, y)
 
     c.showPage()

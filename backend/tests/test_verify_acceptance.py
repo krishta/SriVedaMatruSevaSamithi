@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings
 from app.db.base import Base, SessionLocal, engine
-from app.db.models import NgoSettings
+from app.db.models import Donation, NgoSettings
 from app.main import app
 from app.services.amount_words import amount_paise_to_words, rupees_in_words
 from scripts.seed import run as seed_run
@@ -123,6 +123,27 @@ def test_missing_screenshot_rejected():
               "reason": "general_donation", "mode": "upi", "upi_txn_id": "X"},
     )
     assert resp.status_code == 422
+
+
+def test_admin_one_off_accepts_missing_screenshot(auth_headers):
+    response = client.post(
+        "/api/donations",
+        data={
+            "name": "One-off Donor",
+            "phone": "9000000098",
+            "amount_paise": "1000",
+            "reason": "general_donation",
+            "mode": "upi",
+            "upi_txn_id": "UPI-ONE-OFF-001",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201, response.text
+
+    db = SessionLocal()
+    donation = db.get(Donation, response.json()["donation_id"])
+    assert donation.screenshot_path is None
+    db.close()
 
 
 def test_zero_amount_rejected():
@@ -262,12 +283,24 @@ def test_pdf_returned_with_current_receipt_details_and_disclaimer():
     Note: ReportLab compresses content streams with zlib; the receipt number and
     disclaimer are searched in both raw bytes and decompressed streams via _pdf_search().
     """
+    static_dir = Path(__file__).resolve().parent.parent / "app" / "static"
+    assert all(
+        (static_dir / filename).is_file()
+        for filename in (
+            "jay-jay-shankara.png",
+            "om.png",
+            "hara-hara-shankara.png",
+        )
+    )
+
     db = SessionLocal()
     ngo = db.get(NgoSettings, 1)
     original_address = ngo.address
     original_upi_id = ngo.upi_id
     original_bank_details = ngo.bank_details_json
-    ngo.address = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+    ngo.address = (
+        "HNO 5-78, Plot no 65,\nNavodaya Enclave, Kuntloor,\nHyderabad 501505"
+    )
     ngo.upi_id = "314337859395612@cnrb"
     ngo.bank_details_json = json.dumps(
         {
@@ -299,15 +332,15 @@ def test_pdf_returned_with_current_receipt_details_and_disclaimer():
         # Receipt number must appear somewhere in the PDF (raw or decompressed stream).
         assert _pdf_search(pdf_bytes, receipt_no), f"Receipt number '{receipt_no}' not found in PDF"
         expected_receipt_text = [
+            "Donor Name",
             "Sri/Smt. Verify Donor garu",
-            "HNO 5-78",
-            "Plot no 65, Navodaya Enclave,",
-            "Kuntloor, Hyderabad 501505",
+            "Phone: +91 82970 41509",
+            "HNO 5-78, Plot no 65,",
+            "Navodaya Enclave, Kuntloor,",
+            "Hyderabad 501505",
+            "Account number: 120002395612  |  Bank: Canara Bank",
+            "Branch: Bandlaguda  |  IFSC: CNRB0013309",
             "UPI: 314337859395612@cnrb",
-            "Bank: Canara Bank",
-            "IFSC: CNRB0013309",
-            "Branch: Bandlaguda",
-            "Account number: 120002395612",
             "This is a computer-generated acknowledgement of donation and no signature is required.",
             "This receipt is not valid for claiming tax exemption under Section 80G.",
         ]
@@ -356,7 +389,9 @@ def test_seed_repairs_legacy_ngo_placeholders(monkeypatch):
 
     db = SessionLocal()
     ngo = db.get(NgoSettings, 1)
-    assert ngo.address == "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+    assert ngo.address == (
+        "HNO 5-78, Plot no 65,\nNavodaya Enclave, Kuntloor,\nHyderabad 501505"
+    )
     assert ngo.upi_id == "314337859395612@cnrb"
     assert json.loads(ngo.bank_details_json) == {
         "account_name": "",
@@ -365,6 +400,16 @@ def test_seed_repairs_legacy_ngo_placeholders(monkeypatch):
         "bank": "Canara Bank",
         "branch": "Bandlaguda",
     }
+    ngo.address = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+    db.commit()
+    db.close()
+
+    seed_run()
+    db = SessionLocal()
+    ngo = db.get(NgoSettings, 1)
+    assert ngo.address == (
+        "HNO 5-78, Plot no 65,\nNavodaya Enclave, Kuntloor,\nHyderabad 501505"
+    )
     db.close()
 
 

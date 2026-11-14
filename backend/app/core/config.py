@@ -1,7 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DEFAULT_NGO_ADDRESS = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
+DEFAULT_NGO_ADDRESS = "HNO 5-78, Plot no 65,\nNavodaya Enclave, Kuntloor,\nHyderabad 501505"
+DEFAULT_NGO_PHONE = "+91 82970 41509"
 DEFAULT_NGO_UPI_ID = "314337859395612@cnrb"
 DEFAULT_NGO_BANK_ACCOUNT_NO = "120002395612"
 DEFAULT_NGO_BANK_IFSC = "CNRB0013309"
@@ -34,6 +35,7 @@ class Settings(BaseSettings):
 
     ngo_name: str = "Sri Veda Matru Seva Samiti"
     ngo_address: str = DEFAULT_NGO_ADDRESS
+    ngo_phone: str = DEFAULT_NGO_PHONE
     ngo_upi_id: str = DEFAULT_NGO_UPI_ID
     ngo_bank_account_name: str = ""
     ngo_bank_account_no: str = DEFAULT_NGO_BANK_ACCOUNT_NO

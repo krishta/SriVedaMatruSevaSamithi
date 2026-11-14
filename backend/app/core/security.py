@@ -56,13 +56,22 @@ def decode_token(token: str, expected_type: str) -> str:
     return username
 
 
-def get_current_admin(
+def get_current_admin_optional(
     token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)
-) -> AdminUser:
+) -> AdminUser | None:
     if not token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+        return None
     username = decode_token(token, "access")
     admin = db.query(AdminUser).filter(AdminUser.username == username).first()
     if not admin:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admin not found")
+    return admin
+
+
+def get_current_admin(
+    token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> AdminUser:
+    admin = get_current_admin_optional(token, db)
+    if not admin:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     return admin

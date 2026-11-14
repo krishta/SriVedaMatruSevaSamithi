@@ -128,8 +128,15 @@ const REASONS = [
           </ng-container>
 
           <div class="span-2 file-field">
-            <label class="block-label">Payment screenshot (image or PDF, max 5MB)</label>
-            <input type="file" accept="image/*,.pdf" (change)="onFileSelected($event)" required />
+            <label class="block-label">
+              Payment screenshot (image or PDF, max 5MB{{ embedded ? ', optional' : '' }})
+            </label>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              (change)="onFileSelected($event)"
+              [required]="!embedded"
+            />
           </div>
 
           <div class="span-2">
@@ -247,8 +254,13 @@ export class DonateComponent implements OnInit {
   }
 
   submit(): void {
-    if (this.form.invalid || !this.selectedFile) {
-      this.snackBar.open('Please complete all required fields and attach a screenshot', 'Dismiss');
+    if (this.form.invalid || (!this.embedded && !this.selectedFile)) {
+      this.snackBar.open(
+        this.embedded
+          ? 'Please complete all required fields'
+          : 'Please complete all required fields and attach a screenshot',
+        'Dismiss'
+      );
       return;
     }
     const v = this.form.value;
@@ -267,7 +279,9 @@ export class DonateComponent implements OnInit {
       if (v.branchName) formData.append('branch_name', v.branchName);
       if (v.transactionDate) formData.append('transaction_date', v.transactionDate);
     }
-    formData.append('screenshot', this.selectedFile);
+    if (this.selectedFile) {
+      formData.append('screenshot', this.selectedFile);
+    }
 
     this.submitting = true;
     this.donationService.submit(formData).subscribe({
