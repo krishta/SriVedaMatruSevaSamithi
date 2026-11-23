@@ -1,6 +1,6 @@
 # SVMSS Frontend
 
-Angular web application for donation entry, receipt lookup, and administration. In local development it calls the backend API at `http://192.168.1.102:8000/api`, allowing clients on the same network to share the Mac mini's backend and database.
+Angular web application for donation entry, receipt lookup, and administration. In local development it calls the backend API at `http://192.168.1.101:8000/api`, allowing clients on the same network to share the Mac mini's backend and database.
 
 ## Requirements
 
@@ -24,9 +24,11 @@ Angular web application for donation entry, receipt lookup, and administration. 
    npm start -- --host 0.0.0.0
    ```
 
-5. On the Mac mini, open <http://localhost:4200>. From another device on the same network, open <http://192.168.1.102:4200>. Leave both terminals running while using the application.
+5. On the Mac mini, open <http://localhost:4200>. From another device on the same network, open <http://192.168.1.101:4200>. Leave both terminals running while using the application.
 
-The root page opens the admin ledger (unauthenticated users are redirected to the admin login). The public receipt lookup is at `/receipt-lookup`; donation entry and administration are available under `/admin`. Use the admin username and password configured and seeded in the backend's `.env` file.
+The root page opens the admin ledger (unauthenticated users are redirected to the admin login). The public receipt lookup is at `/receipt-lookup`; donation entry and administration are available under `/admin`. Use the admin username and password configured and seeded in the backend's `.env` file. In the Donation Ledger, **Regenerate receipt** rebuilds and downloads an active receipt without changing its receipt number; voided receipts must be reissued instead.
+
+**Donation Management** in the left navigation contains **Donation Reasons** for maintaining active/archived reasons and **Report Generation** for creating configurable Excel workbooks. Reports support donation-by-reason/date, monthly donations by donor, donor totals, payment reconciliation, and the receipt register. Date filters use the donation received/recorded date; both that date and the receipt issue date are included as required columns.
 
 ## Useful commands
 
@@ -41,6 +43,6 @@ The development API URL is configured in `src/environments/environment.ts`. If t
 
 ## Troubleshooting
 
-- **API requests fail from another device:** confirm the backend is bound to `0.0.0.0`, the device can access `http://192.168.1.102:8000/api/health`, and both frontend origins are allowed by the backend's CORS settings. `localhost` on another device refers to that device, not the Mac mini.
+- **API requests fail from another device:** confirm the backend is bound to `0.0.0.0`, the device can access `http://192.168.1.101:8000/api/health`, and both frontend origins are allowed by the backend's CORS settings. `localhost` on another device refers to that device, not the Mac mini.
 - **Port 4200 is already in use:** stop the other process using the port, or start Angular on another port with `npm start -- --port 4201`. If you change the frontend port, add its origin to the backend's `CORS_ALLOWED_ORIGINS`.
 - **Dependency installation fails:** check your Node.js/npm versions against the requirements of the Angular CLI in `package.json`, then retry `npm ci`.

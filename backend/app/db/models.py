@@ -42,6 +42,32 @@ class Donation(Base):
 
     donor: Mapped["Donor"] = relationship(back_populates="donations")
     receipt: Mapped["Receipt"] = relationship(back_populates="donation", uselist=False)
+    reason_label_snapshot: Mapped["DonationReasonSnapshot | None"] = relationship(
+        back_populates="donation", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class DonationReason(Base):
+    __tablename__ = "donation_reasons"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(120))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DonationReasonSnapshot(Base):
+    __tablename__ = "donation_reason_snapshots"
+    donation_id: Mapped[int] = mapped_column(
+        ForeignKey("donations.id", ondelete="CASCADE"), primary_key=True
+    )
+    label: Mapped[str] = mapped_column(String(120))
+
+    donation: Mapped[Donation] = relationship(back_populates="reason_label_snapshot")
 
 
 class Receipt(Base):

@@ -78,14 +78,16 @@ Run these commands from the `backend/` directory.
    ```
 
    Keep this terminal open while using the app. The API listens on port `8000` on the Mac's
-   network interfaces, including `http://192.168.1.102:8000`.
+   network interfaces, including `http://192.168.1.101:8000`.
 
 ## Verify the backend
 
 - Health check: <http://localhost:8000/api/health> (should return `{"status":"ok"}`)
 - Interactive API documentation: <http://localhost:8000/docs>
 
-The first server start creates any missing database tables. Alembic is configured in the project, but there are currently no migration revisions to run for local setup.
+The first server start creates any missing database tables and seeds the built-in donation reasons. Donation reason changes are stored separately from donation records so already-issued receipts and historical reports keep their original reason labels.
+
+The admin Donation Management API supports archiving and restoring reasons, report filters by donation recorded date and reason, and Excel workbook exports with detail and summary sheets. Exports include both donation received and receipt issue dates.
 
 ## Run backend tests
 
@@ -99,6 +101,6 @@ python -m pytest
 ## Troubleshooting
 
 - **The app cannot connect to SQLite:** run the API from `backend/` and ensure `data/` exists. The relative database URL is resolved from the current working directory.
-- **Browser reports a CORS error:** check that `CORS_ALLOWED_ORIGINS` in `.env` includes the frontend origins, normally `http://localhost:4200` and `http://192.168.1.102:4200`, then restart the API.
+- **Browser reports a CORS error:** check that `CORS_ALLOWED_ORIGINS` in `.env` includes the frontend origins, normally `http://localhost:4200` and `http://192.168.1.101:4200`, then restart the API.
 - **Admin login fails:** check `SEED_ADMIN_USERNAME` and `SEED_ADMIN_PASSWORD` in `.env`. If the account was already seeded, run `python reset_admin.py` after updating the password.
 - **The NGO logo is missing from an existing local database:** after updating the code, run `python -m scripts.seed` from `backend/` to sync the bundled logo path into the existing NGO settings row.

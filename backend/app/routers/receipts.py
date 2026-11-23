@@ -11,7 +11,14 @@ from app.core.security import get_current_admin
 from app.db.base import get_db
 from app.db.models import AdminUser, Donor, Receipt
 from app.schemas import ReceiptLookupItem, ReceiptLookupRequest, VoidRequest
-from app.services.donations import normalize_phone, reissue_receipt, void_receipt
+from app.services.donations import (
+    normalize_phone,
+    regenerate_receipt_pdf,
+    reissue_receipt,
+    void_receipt,
+)
+from app.services.donation_reasons import reason_label_for_donation
+from app.services.pdf import receipt_filename
 from app.services.storage import receipt_storage
 
 router = APIRouter(prefix="/api/receipts", tags=["receipts"])
@@ -36,7 +43,7 @@ def lookup_receipts(request: Request, body: ReceiptLookupRequest, db: Session = 
                 ReceiptLookupItem(
                     receipt_no=donation.receipt.receipt_no,
                     amount_paise=donation.amount_paise,
-                    reason=donation.reason_other if donation.reason == "other" else donation.reason,
+                    reason=reason_label_for_donation(donation),
                     status=donation.status,
                     issued_at=donation.receipt.issued_at,
                     pdf_url=f"/api/receipts/{donation.receipt.id}/pdf",
@@ -51,10 +58,28 @@ def get_receipt_pdf(receipt_id: int, db: Session = Depends(get_db)):
     if not receipt or not receipt.pdf_path:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Receipt not found")
     content = receipt_storage.read(receipt.pdf_path)
+    filename = receipt_filename(receipt.receipt_no, receipt.donation.donor.name)
     return StreamingResponse(
         io.BytesIO(content),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename={receipt.receipt_no.replace('/', '_')}.pdf"},
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@router.post("/{receipt_id}/regenerate")
+def regenerate(
+    receipt_id: int,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+):
+    receipt = db.get(Receipt, receipt_id)
+    if not receipt:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Receipt not found")
+    content, filename = regenerate_receipt_pdf(db, receipt, admin.id)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

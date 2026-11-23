@@ -11,16 +11,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { DonationService } from '../../services/donation.service';
+import { DonationReasonService, DonationReason } from '../../services/donation-reason.service';
 import { NgoSettingsService, NgoSettingsPublic } from '../../services/ngo-settings.service';
-
-const REASONS = [
-  { value: 'monthly_donation', label: 'Monthly Donation' },
-  { value: 'birthday', label: 'Birthday' },
-  { value: 'occasion_veda_sabha', label: 'Occasion / Veda Sabha' },
-  { value: 'telangana_veda_sabhalu_2026', label: '2026 Telangana Veda Sabhalu' },
-  { value: 'general_donation', label: 'General Donation' },
-  { value: 'other', label: 'Other' },
-];
 
 @Component({
   selector: 'svmss-donate',
@@ -88,8 +80,8 @@ const REASONS = [
 
           <mat-form-field>
             <mat-label>Reason</mat-label>
-            <mat-select formControlName="reason" required>
-              <mat-option *ngFor="let r of reasons" [value]="r.value">{{ r.label }}</mat-option>
+            <mat-select formControlName="reason" required [disabled]="!reasons.length">
+              <mat-option *ngFor="let r of reasons" [value]="r.code">{{ r.label }}</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -184,7 +176,7 @@ const REASONS = [
 export class DonateComponent implements OnInit {
   private fb = inject(FormBuilder);
   private route = inject(ActivatedRoute);
-  reasons = REASONS;
+  reasons: DonationReason[] = [];
   ngo: NgoSettingsPublic | null = null;
   submitting = false;
   embedded = this.route.snapshot.data['embedded'] === true;
@@ -207,12 +199,23 @@ export class DonateComponent implements OnInit {
 
   constructor(
     private donationService: DonationService,
+    private donationReasonService: DonationReasonService,
     private ngoSettingsService: NgoSettingsService,
     private router: Router,
     private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
+    this.donationReasonService.active().subscribe({
+      next: (reasons) => {
+        this.reasons = reasons;
+        if (!reasons.length) {
+          this.snackBar.open('No donation reasons are currently available', 'Dismiss');
+        }
+      },
+      error: () => this.snackBar.open('Could not load donation reasons', 'Dismiss'),
+    });
+
     this.ngoSettingsService.getPublic().subscribe({
       next: (ngo) => (this.ngo = ngo),
       error: () => this.snackBar.open('Could not load NGO details', 'Dismiss'),

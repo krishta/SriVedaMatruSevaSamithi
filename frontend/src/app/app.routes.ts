@@ -54,6 +54,30 @@ export const routes: Routes = [
           ),
       },
       {
+          path: 'donation-management',
+          loadComponent: () =>
+            import('./pages/admin-donation-management/admin-donation-management.component').then(
+              (m) => m.AdminDonationManagementComponent
+            ),
+          children: [
+            { path: '', redirectTo: 'reasons', pathMatch: 'full' },
+            {
+              path: 'reasons',
+              loadComponent: () =>
+                import('./pages/admin-donation-management/donation-reasons.component').then(
+                  (m) => m.DonationReasonsComponent
+                ),
+            },
+            {
+              path: 'reports',
+              loadComponent: () =>
+                import('./pages/admin-donation-management/report-generation.component').then(
+                  (m) => m.ReportGenerationComponent
+                ),
+            },
+          ],
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./pages/admin-settings/admin-settings.component').then(

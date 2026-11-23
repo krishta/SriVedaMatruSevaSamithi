@@ -22,6 +22,7 @@ from app.core.config import (
 from app.core.security import hash_password
 from app.db.base import Base, SessionLocal, engine
 from app.db.models import AdminUser, NgoSettings, PeriodCounter
+from app.services.donation_reasons import ensure_donation_reasons
 from app.services.period import current_period
 
 PREVIOUS_NGO_ADDRESS = "HNO 5-78\nPlot no 65, Navodaya Enclave,\nKuntloor, Hyderabad 501505"
@@ -109,6 +110,7 @@ def run() -> None:
             db.add(PeriodCounter(period=period, next_seq=1))
             print(f"Seeded PeriodCounter for {period}.")
 
+        ensure_donation_reasons(db)
         db.commit()
     finally:
         db.close()

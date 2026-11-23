@@ -9,23 +9,24 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import AuditLog, Donation, Donor, NgoSettings, PeriodCounter, Receipt
+from app.db.models import (
+    AuditLog,
+    Donation,
+    DonationReasonSnapshot,
+    Donor,
+    NgoSettings,
+    PeriodCounter,
+    Receipt,
+)
+from app.services.donation_reasons import get_active_reason
 from app.services.period import current_period
 from app.services.notifications import send_receipt_notifications
-from app.services.pdf import render_receipt_pdf
+from app.services.pdf import receipt_filename, render_receipt_pdf
 from app.services.storage import receipt_storage, upload_storage
 
 ALLOWED_MIME = {"image/jpeg", "image/png", "application/pdf"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
-VALID_REASONS = {
-    "monthly_donation",
-    "birthday",
-    "occasion_veda_sabha",
-    "telangana_veda_sabhalu_2026",
-    "general_donation",
-    "other",
-}
 # "cash" removed (PRD DN-03 update) — every mode now leaves a verifiable trail.
 VALID_MODES = {"upi", "bank_transfer", "cheque_dd"}
 
@@ -95,6 +96,7 @@ def _allocate_receipt_no(db: Session, period: str | None = None) -> tuple[str, s
 
 def validate_payment_fields(
     *,
+    db: Session,
     reason: str,
     reason_other: str | None,
     mode: str,
@@ -102,10 +104,9 @@ def validate_payment_fields(
     bank_name: str | None,
     branch_name: str | None,
     transaction_date: date | None,
-) -> None:
+) -> str:
     """Shared reason/mode validation for both the public form and admin batch generation."""
-    if reason not in VALID_REASONS:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid donation reason")
+    reason_definition = get_active_reason(db, reason)
     if reason == "other" and not reason_other:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "reason_other is required when reason=other")
     if mode not in VALID_MODES:
@@ -118,6 +119,7 @@ def validate_payment_fields(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 "bank_name, branch_name and transaction_date are required for bank_transfer/cheque_dd",
             )
+    return reason_definition.label
 
 
 def issue_receipt_for_donation(
@@ -170,7 +172,8 @@ def create_donation(
 ) -> tuple[Donation, Receipt, bool]:
     if amount_paise <= 0:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Amount must be greater than zero")
-    validate_payment_fields(
+    reason_label = validate_payment_fields(
+        db=db,
         reason=reason,
         reason_other=reason_other,
         mode=mode,
@@ -205,6 +208,7 @@ def create_donation(
         screenshot_path=screenshot_path,
         status="issued",
     )
+    donation.reason_label_snapshot = DonationReasonSnapshot(label=reason_label)
     db.add(donation)
     db.flush()
 
@@ -268,3 +272,27 @@ def reissue_receipt(db: Session, voided_receipt: Receipt, admin_id: int) -> Rece
     db.commit()
     db.refresh(new_receipt)
     return new_receipt
+
+
+def regenerate_receipt_pdf(
+    db: Session, receipt: Receipt, admin_id: int
+) -> tuple[bytes, str]:
+    if receipt.voided_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A voided receipt cannot be regenerated")
+
+    donor = receipt.donation.donor
+    ngo = db.execute(select(NgoSettings).where(NgoSettings.id == 1)).scalar_one()
+    pdf_relative_path = render_receipt_pdf(donor, receipt.donation, receipt, ngo)
+    pdf_content = receipt_storage.read(pdf_relative_path)
+    receipt.pdf_path = pdf_relative_path
+    db.add(
+        AuditLog(
+            actor_admin_id=admin_id,
+            action="receipt.regenerate",
+            entity_type="receipt",
+            entity_id=receipt.id,
+            detail_json=json.dumps({"receipt_no": receipt.receipt_no}),
+        )
+    )
+    db.commit()
+    return pdf_content, receipt_filename(receipt.receipt_no, donor.name)

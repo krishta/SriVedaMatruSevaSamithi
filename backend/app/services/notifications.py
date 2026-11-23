@@ -4,6 +4,7 @@ from typing import Protocol
 
 from app.core.config import settings
 from app.db.models import Donor, Receipt
+from app.services.pdf import receipt_filename
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,9 @@ class EmailChannel:
             with open(pdf_path, "rb") as fh:
                 part = MIMEApplication(fh.read(), _subtype="pdf")
                 part.add_header(
-                    "Content-Disposition", "attachment", filename=f"{receipt.receipt_no}.pdf"
+                    "Content-Disposition",
+                    "attachment",
+                    filename=receipt_filename(receipt.receipt_no, donor.name),
                 )
                 msg.attach(part)
 

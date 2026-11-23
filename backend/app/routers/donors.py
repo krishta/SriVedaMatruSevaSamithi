@@ -14,6 +14,7 @@ from app.schemas import (
     DonorUpdate,
 )
 from app.services import donors as donor_service
+from app.services.donation_reasons import reason_label_for_donation
 from app.services.donations import normalize_phone
 
 router = APIRouter(prefix="/api/donors", tags=["donors"])
@@ -102,7 +103,8 @@ def get_donor(
         DonorDonationItem(
             id=d.id,
             amount_paise=d.amount_paise,
-            reason=d.reason_other if d.reason == "other" else d.reason,
+            reason=d.reason,
+            reason_label=reason_label_for_donation(d),
             status=d.status,
             receipt_no=d.receipt.receipt_no if d.receipt else None,
             created_at=d.created_at,

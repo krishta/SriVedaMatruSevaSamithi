@@ -42,7 +42,7 @@ import { InrCurrencyPipe } from '../../pipes/inr-currency.pipe';
         </ng-container>
         <ng-container matColumnDef="reason">
           <th mat-header-cell *matHeaderCellDef>Reason</th>
-          <td mat-cell *matCellDef="let row">{{ row.reason }}</td>
+          <td mat-cell *matCellDef="let row">{{ row.reason_label }}</td>
         </ng-container>
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Status</th>

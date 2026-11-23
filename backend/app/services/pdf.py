@@ -1,6 +1,8 @@
 import io
 import json
 import logging
+import re
+import unicodedata
 from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
@@ -13,21 +15,13 @@ from reportlab.pdfgen import canvas
 from app.core.config import settings
 from app.db.models import Donation, Donor, NgoSettings, Receipt
 from app.services.amount_words import amount_paise_to_words, format_inr_ascii
+from app.services.donation_reasons import reason_label_for_donation
 from app.services.storage import receipt_storage
 
 logger = logging.getLogger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 LOGO_BOX_CM = 2.2  # square logo box, top-left of the receipt
-
-_REASON_LABELS = {
-    "monthly_donation": "Monthly Donation",
-    "birthday": "Birthday",
-    "occasion_veda_sabha": "Occasion / Veda Sabha",
-    "telangana_veda_sabhalu_2026": "2026 Telangana Veda Sabhalu",
-    "general_donation": "General Donation",
-    "other": "Other",
-}
 
 _MODE_LABELS = {
     "upi": "UPI",
@@ -155,6 +149,15 @@ def _receipt_donor_name(name: str) -> str:
     return f"Sri/Smt. {donor_name} garu" if donor_name else "Sri/Smt. garu"
 
 
+def receipt_filename(receipt_no: str, donor_name: str) -> str:
+    receipt_part = re.sub(r"[^A-Za-z0-9]+", "_", receipt_no).strip("_")
+    ascii_name = (
+        unicodedata.normalize("NFKD", donor_name).encode("ascii", "ignore").decode("ascii")
+    )
+    donor_part = re.sub(r"[^A-Za-z0-9]+", "_", ascii_name).strip("_").lower() or "donor"
+    return f"{receipt_part}_{donor_part}.pdf"
+
+
 def render_receipt_pdf(
     donor: Donor, donation: Donation, receipt: Receipt, ngo: NgoSettings
 ) -> str:
@@ -162,11 +165,7 @@ def render_receipt_pdf(
     chosen over weasyprint, per module 05, because it needs no native Cairo/Pango toolchain,
     which made weasyprint unreliable behind a locked-down package mirror)."""
     bank = json.loads(ngo.bank_details_json)
-    reason_display = (
-        donation.reason_other
-        if donation.reason == "other" and donation.reason_other
-        else _REASON_LABELS.get(donation.reason, donation.reason)
-    )
+    reason_display = reason_label_for_donation(donation)
     mode_display = _MODE_LABELS.get(donation.mode, donation.mode)
 
     buffer = io.BytesIO()
@@ -333,6 +332,6 @@ def render_receipt_pdf(
     c.save()
     pdf_bytes = buffer.getvalue()
 
-    filename_hint = f"{receipt.receipt_no.replace('/', '_')}.pdf"
+    filename_hint = receipt_filename(receipt.receipt_no, donor.name)
     subdir = receipt.period
     return receipt_storage.save(subdir, filename_hint, pdf_bytes)

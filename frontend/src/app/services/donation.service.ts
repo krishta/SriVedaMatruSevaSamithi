@@ -19,6 +19,7 @@ export interface DonationListResponse {
     donor_phone: string;
     amount_paise: number;
     reason: string;
+    reason_label: string;
     reason_other: string | null;
     mode: string;
     status: string;

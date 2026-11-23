@@ -27,7 +27,7 @@ import { InrCurrencyPipe } from '../../pipes/inr-currency.pipe';
     InrCurrencyPipe,
   ],
   template: `
-    <div class="page-container svmss-card" style="max-width: 1100px;">
+    <div class="page-container svmss-card" style="max-width: 1300px;">
       <h2 style="font-weight: 700;">Donation Ledger</h2>
       <div class="toolbar-row">
         <mat-form-field style="width: 420px;">
@@ -58,7 +58,7 @@ import { InrCurrencyPipe } from '../../pipes/inr-currency.pipe';
         </ng-container>
         <ng-container matColumnDef="reason">
           <th mat-header-cell *matHeaderCellDef>Reason</th>
-          <td mat-cell *matCellDef="let row">{{ row.reason_other || row.reason }}</td>
+          <td mat-cell *matCellDef="let row">{{ row.reason_label }}</td>
         </ng-container>
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Status</th>
@@ -69,11 +69,26 @@ import { InrCurrencyPipe } from '../../pipes/inr-currency.pipe';
           <td mat-cell *matCellDef="let row">{{ row.receipt_no }}</td>
         </ng-container>
         <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef>Actions</th>
-          <td mat-cell *matCellDef="let row">
-            <button mat-raised-button color="warn" *ngIf="row.status === 'issued'" (click)="voidReceipt(row)">
-              Void
-            </button>
+          <th mat-header-cell *matHeaderCellDef class="actions-cell">Actions</th>
+          <td mat-cell *matCellDef="let row" class="actions-cell">
+            <div class="ledger-actions">
+              <button
+                mat-raised-button
+                *ngIf="row.status === 'issued' && row.receipt_id"
+                [disabled]="regeneratingReceiptId === row.receipt_id"
+                (click)="regenerateReceipt(row)"
+              >
+                {{ regeneratingReceiptId === row.receipt_id ? 'Regenerating…' : 'Regenerate receipt' }}
+              </button>
+              <button
+                mat-raised-button
+                color="warn"
+                *ngIf="row.status === 'issued'"
+                (click)="voidReceipt(row)"
+              >
+                Void
+              </button>
+            </div>
           </td>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="columns"></tr>
@@ -92,6 +107,29 @@ import { InrCurrencyPipe } from '../../pipes/inr-currency.pipe';
       ></mat-paginator>
     </div>
   `,
+  styles: [
+    `
+      .actions-cell {
+        min-width: 210px;
+        white-space: nowrap;
+      }
+
+      .ledger-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 6px;
+      }
+
+      .ledger-actions button {
+        min-width: 0;
+        min-height: 32px;
+        padding-inline: 10px;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+    `,
+  ],
 })
 export class AdminLedgerComponent implements OnInit {
   columns = ['date', 'donor', 'amount', 'reason', 'status', 'receipt', 'actions'];
@@ -100,6 +138,7 @@ export class AdminLedgerComponent implements OnInit {
   exporting = false;
   loading = false;
   errorMessage = '';
+  regeneratingReceiptId: number | null = null;
 
   constructor(
     private donationService: DonationService,
@@ -160,5 +199,37 @@ export class AdminLedgerComponent implements OnInit {
     const reason = prompt('Reason for voiding this receipt?');
     if (!reason) return;
     this.receiptService.void(row.receipt_id, reason).subscribe(() => this.reload(this.data.page));
+  }
+
+  regenerateReceipt(row: DonationListResponse['items'][number]): void {
+    if (!row.receipt_id) return;
+    this.regeneratingReceiptId = row.receipt_id;
+    this.errorMessage = '';
+    this.receiptService.regenerate(row.receipt_id).subscribe({
+      next: (response) => {
+        this.regeneratingReceiptId = null;
+        if (!response.body) {
+          this.errorMessage = 'The receipt was regenerated, but no PDF was returned.';
+          this.changeDetector.markForCheck();
+          return;
+        }
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const receiptNumber = row.receipt_no?.replace(/\//g, '_') ?? 'receipt';
+        const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+          ?? `${receiptNumber}.pdf`;
+        const url = window.URL.createObjectURL(response.body);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+        this.changeDetector.markForCheck();
+      },
+      error: () => {
+        this.regeneratingReceiptId = null;
+        this.errorMessage = 'Could not regenerate the receipt. Please try again.';
+        this.changeDetector.markForCheck();
+      },
+    });
   }
 }

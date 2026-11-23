@@ -4,7 +4,7 @@ import logging
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.db.models import AuditLog, Donation, Donor
+from app.db.models import AuditLog, Donation, DonationReasonSnapshot, Donor
 from app.schemas import BatchReceiptItem, BatchReceiptResultItem
 from app.services.donations import (
     MODE_FIELD_GROUPS,
@@ -46,7 +46,8 @@ def generate_batch_receipts(
             continue
 
         try:
-            validate_payment_fields(
+            reason_label = validate_payment_fields(
+                db=db,
                 reason=item.reason,
                 reason_other=item.reason_other,
                 mode=item.mode,
@@ -76,6 +77,7 @@ def generate_batch_receipts(
                 screenshot_path=screenshot_path,
                 status="issued",
             )
+            donation.reason_label_snapshot = DonationReasonSnapshot(label=reason_label)
             db.add(donation)
             db.flush()
 

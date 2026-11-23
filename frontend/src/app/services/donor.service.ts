@@ -7,6 +7,7 @@ export interface DonorDonationItem {
   id: number;
   amount_paise: number;
   reason: string;
+  reason_label: string;
   status: string;
   receipt_no: string | null;
   created_at: string;

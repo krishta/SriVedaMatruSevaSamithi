@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 # ---- Donations ----
@@ -19,6 +19,7 @@ class DonationListItem(BaseModel):
     donor_phone: str
     amount_paise: int
     reason: str
+    reason_label: str
     reason_other: str | None
     mode: str
     status: str
@@ -65,6 +66,7 @@ class DonorDonationItem(BaseModel):
     id: int
     amount_paise: int
     reason: str
+    reason_label: str
     status: str
     receipt_no: str | None
     created_at: datetime
@@ -204,3 +206,29 @@ class NgoSettingsUpdate(BaseModel):
     upi_id: str
     bank_details: dict
     reg_80g_number: str | None = None
+
+
+class DonationReasonCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+
+
+class DonationReasonUpdate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+
+
+class DonationReasonItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    label: str
+    is_active: bool
+    is_system: bool
+
+
+class DonationReportRequest(BaseModel):
+    report_type: str
+    columns: list[str] = Field(min_length=1)
+    date_from: date | None = None
+    date_to: date | None = None
+    reason_code: str | None = None
+    include_voided: bool = False

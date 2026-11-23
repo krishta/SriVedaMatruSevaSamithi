@@ -23,6 +23,7 @@ from app.schemas import (
     DonationListResponse,
 )
 from app.services.batch_receipts import generate_batch_receipts
+from app.services.donation_reasons import reason_label_for_donation
 from app.services.donations import create_donation
 
 router = APIRouter(prefix="/api/donations", tags=["donations"])
@@ -178,6 +179,7 @@ def list_donations(
             donor_phone=donor.phone,
             amount_paise=d.amount_paise,
             reason=d.reason,
+            reason_label=reason_label_for_donation(d),
             reason_other=d.reason_other,
             mode=d.mode,
             status=d.status,
@@ -234,7 +236,7 @@ def export_donations_csv(
                 donor.name,
                 donor.phone,
                 f"{d.amount_paise / 100:.2f}",
-                d.reason_other if d.reason == "other" else d.reason,
+                reason_label_for_donation(d),
                 d.mode,
                 d.status,
                 receipt.receipt_no if receipt else "",

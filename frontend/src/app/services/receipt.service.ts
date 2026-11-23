@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -28,6 +29,13 @@ export class ReceiptService {
 
   reissue(receiptId: number): Observable<unknown> {
     return this.http.post(`${this.base}/${receiptId}/reissue`, {});
+  }
+
+  regenerate(receiptId: number): Observable<HttpResponse<Blob>> {
+    return this.http.post(`${this.base}/${receiptId}/regenerate`, {}, {
+      observe: 'response',
+      responseType: 'blob',
+    });
   }
 
   pdfUrl(receiptId: number): string {

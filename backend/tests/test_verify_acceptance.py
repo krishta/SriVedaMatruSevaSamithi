@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -324,6 +325,7 @@ def test_pdf_returned_with_current_receipt_details_and_disclaimer():
         resp = client.get(pdf_url)
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/pdf"
+        assert "verify_donor.pdf" in resp.headers["content-disposition"]
 
         pdf_bytes = resp.content
         assert pdf_bytes[:4] == b"%PDF", "Response is not a valid PDF"
@@ -355,6 +357,26 @@ def test_pdf_returned_with_current_receipt_details_and_disclaimer():
         ngo.bank_details_json = original_bank_details
         db.commit()
         db.close()
+
+
+def test_admin_can_regenerate_receipt_with_donor_filename(auth_headers):
+    donation = _make_donation(
+        name="Receipt Filename Donor",
+        phone="9100000091",
+        amount_paise="15000",
+        upi_txn_id="UPI-REGENERATE-001",
+    )
+    receipt_id = int(donation["pdf_url"].split("/")[-2])
+
+    response = client.post(
+        f"/api/receipts/{receipt_id}/regenerate",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/pdf"
+    assert "SVMSS_" in response.headers["content-disposition"]
+    assert "receipt_filename_donor.pdf" in response.headers["content-disposition"]
+    assert _pdf_search(response.content, donation["receipt_no"])
 
 
 def test_seed_repairs_legacy_ngo_placeholders(monkeypatch):
@@ -519,6 +541,12 @@ def test_void_and_reissue(auth_headers):
     assert void_resp.status_code == 200
     assert void_resp.json()["status"] == "voided"
 
+    regenerate_resp = client.post(
+        f"/api/receipts/{receipt_id}/regenerate",
+        headers=auth_headers,
+    )
+    assert regenerate_resp.status_code == 409
+
     # Reissue creates a brand-new receipt number.
     reissue_resp = client.post(f"/api/receipts/{receipt_id}/reissue", headers=auth_headers)
     assert reissue_resp.status_code == 200
@@ -530,3 +558,182 @@ def test_void_and_reissue(auth_headers):
 def test_void_requires_auth():
     """AD-04: void endpoint requires a valid JWT."""
     assert client.post("/api/receipts/1/void", json={"reason": "test"}).status_code == 401
+
+
+def test_receipt_regeneration_requires_auth():
+    assert client.post("/api/receipts/1/regenerate").status_code == 401
+
+
+def test_donation_reason_crud_preserves_existing_receipt_label(auth_headers):
+    created = client.post(
+        "/api/donation-reasons",
+        headers=auth_headers,
+        json={"label": "Community Kitchen"},
+    )
+    assert created.status_code == 201, created.text
+    reason = created.json()
+
+    donation = _make_donation(
+        name="Reason Snapshot Donor",
+        phone="9100000090",
+        amount_paise="5000",
+        reason=reason["code"],
+        upi_txn_id="UPI-REASON-SNAPSHOT",
+    )
+    pdf_response = client.get(donation["pdf_url"])
+    assert _pdf_search(pdf_response.content, "Community Kitchen")
+
+    updated = client.put(
+        f"/api/donation-reasons/{reason['code']}",
+        headers=auth_headers,
+        json={"label": "Community Meal Support"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["label"] == "Community Meal Support"
+    assert _pdf_search(pdf_response.content, "Community Kitchen")
+    receipt_id = int(donation["pdf_url"].split("/")[-2])
+    regenerated = client.post(
+        f"/api/receipts/{receipt_id}/regenerate",
+        headers=auth_headers,
+    )
+    assert regenerated.status_code == 200
+    assert _pdf_search(regenerated.content, "Community Kitchen")
+    assert not _pdf_search(regenerated.content, "Community Meal Support")
+
+    archived = client.delete(
+        f"/api/donation-reasons/{reason['code']}",
+        headers=auth_headers,
+    )
+    assert archived.status_code == 204
+    active_reasons = client.get("/api/donation-reasons").json()
+    assert reason["code"] not in {item["code"] for item in active_reasons}
+
+    archived_donation = client.post(
+        "/api/donations",
+        data={
+            "name": "Archived Reason Donor",
+            "phone": "9100000087",
+            "amount_paise": "5000",
+            "reason": reason["code"],
+            "mode": "upi",
+            "upi_txn_id": "UPI-ARCHIVED-REASON",
+        },
+        files={"screenshot": ("proof.png", io.BytesIO(_png_bytes()), "image/png")},
+    )
+    assert archived_donation.status_code == 422
+
+    restored = client.post(
+        f"/api/donation-reasons/{reason['code']}/activate",
+        headers=auth_headers,
+    )
+    assert restored.status_code == 200
+    assert restored.json()["is_active"] is True
+
+
+def test_system_donation_reason_cannot_be_archived(auth_headers):
+    response = client.delete(
+        "/api/donation-reasons/monthly_donation",
+        headers=auth_headers,
+    )
+    assert response.status_code == 409
+
+
+def test_report_export_has_selected_columns_and_summary(auth_headers):
+    donation = _make_donation(
+        name="Excel Report Donor",
+        phone="9100000089",
+        amount_paise="8750",
+        upi_txn_id="UPI-REPORT-001",
+    )
+    response = client.post(
+        "/api/reports/export",
+        headers=auth_headers,
+        json={
+            "report_type": "reason_period",
+            "columns": [
+                "donor_name",
+                "donation_date",
+                "receipt_date",
+                "reason",
+                "amount",
+                "receipt_no",
+            ],
+            "include_voided": False,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = load_workbook(io.BytesIO(response.content), read_only=True, data_only=True)
+    assert workbook.sheetnames == ["Donations", "Summary"]
+    details = workbook["Donations"]
+    assert [cell.value for cell in details[1]] == [
+        "Donor name",
+        "Donation received date",
+        "Receipt issue date",
+        "Reason",
+        "Amount (INR)",
+        "Receipt number",
+    ]
+    assert any(row[0].value == "Excel Report Donor" for row in details.iter_rows(min_row=2))
+    assert any(row[0].value == "Monthly Donation" for row in workbook["Summary"].iter_rows(min_row=2))
+    assert any(row[5].value == donation["receipt_no"] for row in details.iter_rows(min_row=2))
+    workbook.close()
+
+
+@pytest.mark.parametrize(
+    ("report_type", "summary_header"),
+    [
+        ("monthly_donations", "Month"),
+        ("donor_summary", "Donor name"),
+        ("payment_reconciliation", "Payment method"),
+        ("receipt_register", "Receipt status"),
+    ],
+)
+def test_report_types_generate_summary_sheet(auth_headers, report_type, summary_header):
+    _make_donation(
+        name=f"Report Type {report_type}",
+        phone=f"91000000{len(report_type):02d}",
+        amount_paise="4250",
+        upi_txn_id=f"UPI-{report_type.upper()}",
+    )
+    response = client.post(
+        "/api/reports/export",
+        headers=auth_headers,
+        json={
+            "report_type": report_type,
+            "columns": ["donor_name", "donation_date", "receipt_date", "reason", "amount"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    workbook = load_workbook(io.BytesIO(response.content), read_only=True, data_only=True)
+    assert workbook.sheetnames == ["Donations", "Summary"]
+    assert workbook["Summary"].cell(1, 1).value == summary_header
+    assert workbook["Summary"].max_row >= 2
+    workbook.close()
+
+
+def test_report_export_requires_admin_and_required_columns(auth_headers):
+    assert client.post("/api/reports/export", json={}).status_code == 401
+    response = client.post(
+        "/api/reports/export",
+        headers=auth_headers,
+        json={"report_type": "reason_period", "columns": ["donor_name"]},
+    )
+    assert response.status_code == 422
+
+
+def test_report_export_returns_clear_error_when_no_donations_match(auth_headers):
+    response = client.post(
+        "/api/reports/export",
+        headers=auth_headers,
+        json={
+            "report_type": "reason_period",
+            "columns": ["donor_name", "donation_date", "receipt_date", "reason", "amount"],
+            "reason_code": "telangana_veda_sabhalu_2026",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No donations matched the selected filters"

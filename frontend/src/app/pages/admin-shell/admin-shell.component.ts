@@ -234,6 +234,7 @@ export class AdminShellComponent {
     { path: '/admin/donors', label: 'Donors', icon: 'group' },
     { path: '/admin/batch-receipts', label: 'Batch Receipts', icon: 'playlist_add_check' },
     { path: '/admin/donate', label: 'One-off Receipt', icon: 'add_card' },
+    { path: '/admin/donation-management', label: 'Donation Management', icon: 'manage_accounts' },
     { path: '/admin/meetings', label: 'Monthly Meetings', icon: 'event_note' },
     { path: '/admin/settings', label: 'Settings', icon: 'settings' },
   ];

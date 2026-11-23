@@ -7,8 +7,12 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.core.config import settings
-from app.db.base import Base, engine
-from app.routers import auth, donations, donors, meetings, ngo_settings, receipts
+from app.db.base import Base, SessionLocal, engine
+from app.routers import auth, donation_reasons, donations, donors, meetings, ngo_settings, receipts, reports
+from app.services.donation_reasons import (
+    ensure_donation_reasons,
+    upgrade_donation_reason_schema,
+)
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -22,6 +26,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -34,9 +39,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 def on_startup() -> None:
     # For local/dev convenience; production applies migrations via `alembic upgrade head` instead.
     Base.metadata.create_all(bind=engine)
+    upgrade_donation_reason_schema(engine)
+    db = SessionLocal()
+    try:
+        ensure_donation_reasons(db)
+        db.commit()
+    finally:
+        db.close()
 
 
 app.include_router(donations.router)
+app.include_router(donation_reasons.router)
+app.include_router(reports.router)
 app.include_router(receipts.router)
 app.include_router(auth.router)
 app.include_router(donors.router)
